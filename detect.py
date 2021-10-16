@@ -32,7 +32,7 @@ def intersection_over_union(box1, box2, epsilon = 1e-6):
 
   intersection = (x6-x5)*(y6-y5)
 
-  return intersection / (union + epsilon)
+  return intersection / (union - intersection + epsilon)
 
 
 def average_precision(detection_boxes, ground_truth_boxes, iou_threshold=0.5, epsilon=1e-6):
@@ -70,7 +70,7 @@ def average_precision(detection_boxes, ground_truth_boxes, iou_threshold=0.5, ep
         assigned_gt = gt
 
     if max_iou > iou_threshold:
-      if assigned_boxes[gt] == 0:
+      if assigned_boxes[assigned_gt] == 0:
         true_positives[box] = 1
         assigned_boxes[assigned_gt] = 1
       else:
