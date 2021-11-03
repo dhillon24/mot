@@ -86,7 +86,7 @@ class RandomHorizontalFlip(object):
         return image, labels
 
 class RandomCrop(object):
-    def __init__(self, min_ratio=0.7, max_ratio=1.0, prob=0.5, border=0.1):
+    def __init__(self, min_ratio=0.6, max_ratio=1.0, prob=0.5, border=0.05):
         self.min_ratio = min_ratio
         self.max_ratio = max_ratio
         self.prob = prob
@@ -442,11 +442,6 @@ if __name__ == "__main__":
 
     mot20_train = MOT20DatasetSubset(mot20, trains_ids)
     mot20_val = MOT20DatasetSubset(mot20, val_ids)
-
-    # for idx in range(len(mot20_train)):
-    #     image, label = mot20_train[idx]
-    #     print(image)
-    #     print(label)
 
     train_dataloader = DataLoader(mot20_train, batch_size=64, shuffle=True)
     train_features, train_labels = next(iter(train_dataloader))

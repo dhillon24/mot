@@ -7,7 +7,7 @@ from torchvision import transforms
 from sklearn.model_selection import train_test_split
 from build_dataset import CompositeCompose, MOT20Dataset, MOT20DatasetSubset, RandomCrop
 from build_dataset import Denormalize, RandomHorizontalFlip
-from detect import calculate_mAP
+from detect import calculate_mAP, calculate_mAP_vectorized
 from models.fairmot import FairMOT, FairMOTLoss
 from torch.utils.data import DataLoader
 from torchinfo import summary
@@ -41,7 +41,7 @@ def train_loop(dataloader, model, loss_fn, optimizer, device, writer, epoch):
     pred = model(X)
     y = y.to(device=device)
     losses = loss_fn(pred, y)
-    mAP = calculate_mAP(pred, y, (X.shape[2], X.shape[3]))
+    mAP = calculate_mAP_vectorized(pred, y, (X.shape[2], X.shape[3]), device, model.max_detections)
     step = epoch*len(dataloader.dataset)//dataloader.batch_size + batch + 1
     for key, value in losses._asdict().items():
       writer.add_scalar("Losses/train/"+key, value, step)
@@ -49,7 +49,7 @@ def train_loop(dataloader, model, loss_fn, optimizer, device, writer, epoch):
     losses.total_loss.backward()
     optimizer.step()
     loss, current, precision = losses.total_loss.item(), batch * len(X), mAP.item()
-    print(f"loss: {loss:>7f} precision: {precision:>5f} [{current:>5d}/{size:>5d}]") 
+    print(f"epoch: {epoch:>5d} loss: {loss:>7f} precision: {precision:>5f} [{current:>5d}/{size:>5d}]") 
 
 def test_loop(dataloader, model, loss_fn, device, writer, epoch):
 
@@ -64,7 +64,8 @@ def test_loop(dataloader, model, loss_fn, device, writer, epoch):
       y = y.to(device=device)
       pred = model(X)
       losses = loss_fn(pred, y)
-      mAP = calculate_mAP(pred, y, (X.shape[2], X.shape[3]))
+      mAP = calculate_mAP_vectorized(
+          pred, y, (X.shape[2], X.shape[3]), device, model.max_detections)
       step = epoch*len(dataloader.dataset)//dataloader.batch_size + batch + 1
       for key, value in losses._asdict().items():
         writer.add_scalar("Losses/valid/"+key, value,step)
@@ -75,11 +76,7 @@ def test_loop(dataloader, model, loss_fn, device, writer, epoch):
   test_loss /= num_batches
   test_precision /= num_batches
 
-  print(f"Test Stats: \n Avg Loss: {test_loss:>8f} mAP: {test_precision:>5f}\n")
-
-  # img_grid = torchvision.utils.make_grid(X)
-  # matplotlib_imshow(img_grid, one_channel=False)
-  # writer.add_image('batch_mot_images', img_grid)
+  print(f"Test Stats: \n Epoch: {epoch:>5d} Avg Loss: {test_loss:>8f} mAP: {test_precision:>5f}\n")
   
 def main(args):
   torch.manual_seed(args.manual_seed)
@@ -95,7 +92,7 @@ def main(args):
   img_size = (args.image_height, args.image_width)
   label_transforms = transforms.Compose([transforms.ToTensor()])
   image_transforms = transforms.Compose([transforms.Resize(img_size), 
-                                         transforms.ColorJitter(brightness=args.brightness_jitter, hue=args.hue_jitter),
+                                         transforms.ColorJitter(brightness=args.brightness_jitter, hue=args.hue_jitter), 
                                          transforms.ToTensor(),
                                          transforms.Normalize(
                                          mean=[0.485, 0.456, 0.406],
@@ -258,35 +255,3 @@ if __name__ == "__main__":
   args = parser.parse_args()
   
   main(args)
-
-## Ideas to Try ##
-## 
-## Attack small problems don't try to resolve everything in one step
-##
-## -2. Create an expirement management system in which all hyperparameters used in a particular run are stored in a config file with weights
-##
-## -1. Make a clean interface to load weights and resume training from those pretrained weights - DONE, SUCCESS
-##
-##  0. Overfit training on a single image first to see if there are prediction errors - DONE, SUCCESS, PROBLEM DIAGNOSED AND FIXED
-## 
-##  1. Concatenate the losses instead of broadcasting in a loop, lose learnable weights for detection and reid loss - DONE, USED MASK INSTEAD
-##       
-##  2. Use tensorboard to evaluate training and use early stopping. Use mAP and draw predictions on images for qualitative evaluation - 50%
-##
-##  3. Introduce mosaic augmentation and label noise like shrinkage, expansion and translation
-##
-##  4. Pretrain the feature encoder on the CrowdHuman dataset. Better yet for CrowdHuman training pretrain on ImageNet using Resnet34
-##
-##  5. Optimize the model until prediction > 30 fps on RTX 2080 Ti
-##
-##  6. Introduce a sigmoid function for center offsets and box sizes - DONE, NOT CANONICAL, REVERTED
-##                                                                          
-##  7. Look for optimal gaussian kernel size in ground truth heat map, probably: max(object_width,object_height) = 6*sigma
-##
-##  8. Resolve the problem of different objects mapping to same occupancy map location by adding count to heatmap
-##
-##  9. Use 2D peak finding algorithm on predicted heatmap instead of NMS, Could use Maxpooling
-##             
-## 10. Initialize upsampling weights to bilinear interpolation to make the network converge faster
-##
-## 11. Think of computationally less expensive way to upsample from 1/32 to 1/4 rather than using large kernel size
