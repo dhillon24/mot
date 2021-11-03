@@ -351,10 +351,6 @@ class FairMOTLoss(nn.Module):
       non_empty_mask = valid_boxes.abs().sum(dim=1).bool()
       valid_boxes = valid_boxes[non_empty_mask, :]
 
-      # detection_mask = torch.zeros(*map_size, dtype=torch.bool).to(self.device)
-      # gt_box_sizes = torch.zeros(2, *map_size, dtype=torch.float32).to(self.device)
-      # gt_center_offsets = torch.zeros(2, *map_size, dtype=torch.float32).to(self.device)
-
       gt_class_labels = torch.zeros(valid_boxes.shape[0], dtype=torch.int64).to(self.device)
       predicted_class_labels = torch.zeros(
           valid_boxes.shape[0], self.num_classes, dtype=torch.float32).to(self.device)
@@ -389,17 +385,6 @@ class FairMOTLoss(nn.Module):
                                                     :, mask_row_i, mask_col_i].squeeze()).unsqueeze(0)
 
         gt_class_labels[box] = class_id
-
-      # gt_heatmap = self.smoother(detection_mask.float().view(1,1,*detection_mask.shape))
-
-      # heatmap_loss_sum = heatmap_loss_sum + self.heatmap_loss(
-          # predicted_heatmaps[sample].squeeze(), gt_heatmap.squeeze()) 
-      
-      # box_sizes_loss_sum = box_sizes_loss_sum + self.box_sizes_loss(
-      #     predicted_box_sizes[sample, :, detection_mask].squeeze(), gt_box_sizes[:, detection_mask].squeeze())
-
-      # center_offsets_loss_sum = center_offsets_loss_sum + self.center_offsets_loss(
-          # predicted_center_offsets[sample, :, detection_mask].squeeze(), gt_center_offsets[:, detection_mask].squeeze())
 
       reid_loss_sum = reid_loss_sum + self.reid_loss_weight*self.reid_loss(
           predicted_class_labels, gt_class_labels)    
